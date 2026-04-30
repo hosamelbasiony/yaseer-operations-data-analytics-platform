@@ -38,3 +38,4 @@ docs/METABASE_GUIDE.md
 docs/DATABASE.md
 docs/CLEANING.md
 rabbitmq_viewer.py
+dags/hello_world.py
