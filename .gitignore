@@ -26,7 +26,6 @@ seeds/
 snapshots/
 sources/
 playground/
-docs/
 
 # Data dumps
 *.sql
@@ -34,4 +33,7 @@ docs/
 
 # others
 Project Documentation.pdf
+docs/METABASE_GUIDE.md
+docs/DATABASE.md
+docs/CLEANING.md
 rabbitmq_viewer.py
