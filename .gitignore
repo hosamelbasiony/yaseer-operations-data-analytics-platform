@@ -26,6 +26,7 @@ seeds/
 snapshots/
 sources/
 playground/
+docs/
 
 # Data dumps
 *.sql
