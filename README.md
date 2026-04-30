@@ -38,6 +38,7 @@ The [`docs/`](docs/) directory contains the full project documentation:
 ### 1. Configure Environment
 Copy the example files and fill in your credentials:
 ```bash
+cp .env.example .env
 cp docker-compose.example.yml docker-compose.yml
 cp config/debezium/application.example.properties config/debezium/application.properties
 cp profiles.example.yml profiles.yml
@@ -52,15 +53,15 @@ docker-compose up -d
 ### 3. Access Services
 Once the containers are running, access the following interfaces:
 
-| Service | URL | Description |
-| :--- | :--- | :--- |
-| **Apache Airflow** | [http://localhost:8080](http://localhost:8080) | Workflow Orchestration & Scheduling |
-| **Metabase** | [http://localhost:3000](http://localhost:3000) | BI Dashboards & Reporting |
-| **ClickHouse** | [http://localhost:8123](http://localhost:8123) | OLAP Database (HTTP Interface) |
-| **RabbitMQ** | [http://localhost:15672](http://localhost:15672) | Message Broker Management |
-| **MinIO** | [http://localhost:9001](http://localhost:9001) | Object Storage Console |
+| Service | URL | Credentials (`.env` variables) | Description |
+| :--- | :--- | :--- | :--- |
+| **Apache Airflow** | [http://localhost:8080](http://localhost:8080) | `AIRFLOW_POSTGRES_USER` / `AIRFLOW_POSTGRES_PASSWORD` | Workflow Orchestration & Scheduling |
+| **Metabase** | [http://localhost:3000](http://localhost:3000) | Setup on first run | BI Dashboards & Reporting |
+| **ClickHouse** | [http://localhost:8123](http://localhost:8123) | `CLICKHOUSE_USER` / `CLICKHOUSE_PASSWORD` | OLAP Database (HTTP Interface) |
+| **RabbitMQ** | [http://localhost:15672](http://localhost:15672) | `RABBITMQ_DEFAULT_USER` / `RABBITMQ_DEFAULT_PASS` | Message Broker Management |
+| **MinIO** | [http://localhost:9001](http://localhost:9001) | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | Object Storage Console |
 
-> **Note:** Default credentials are configured in `docker-compose.yml`. Metabase requires initial setup on first run.
+> **Note:** All credentials are configured in the `.env` file. Copy `.env.example` to `.env` and update the values before starting the platform.
 
 ---
 
