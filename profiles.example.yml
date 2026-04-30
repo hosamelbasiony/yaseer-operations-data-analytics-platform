@@ -1,0 +1,10 @@
+clickhouse:
+  target: dev
+  outputs:
+    dev:
+      type: clickhouse
+      host: clickhouse
+      port: 8123
+      user: <your_clickhouse_user>
+      password: <your_clickhouse_password>
+      schema: default

@@ -1,0 +1,34 @@
+version: 2
+
+sources:
+  - name: lis_tarqeem
+    database: default # Replace with actual if needed in ClickHouse context
+    schema: default
+
+    tables:
+      - name: patients
+        description: "Raw patient demographic data"
+      - name: reg
+        description: "Raw registration and invoice headers"
+      - name: reg_lines
+        description: "Raw registration profiles and test items"
+      - name: tests
+        description: "Test definitions"
+      - name: profiles
+        description: "Profile/Package definitions"
+      - name: installment
+        description: "Payment and discount transactions"
+      - name: users
+        description: "System users"
+      - name: expenses
+        description: "Branch and operational expenses"
+      - name: expenses_categories
+        description: "Categories for expenses"
+      - name: test_entry_lines
+        description: "Individual test result values with reference ranges"
+      - name: profile_details
+        description: "Test-to-profile mapping (which tests belong to which panels)"
+      - name: referral
+        description: "Referring doctors and entities"
+      - name: branches
+        description: "Lab branch locations"

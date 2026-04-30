@@ -1,0 +1,22 @@
+name: 'yaseer_bi'
+version: '1.0.0'
+config-version: 2
+
+profile: 'clickhouse'
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  yaseer_bi:
+    +materialized: table
+    staging:
+      +materialized: view

@@ -1,0 +1,270 @@
+services:
+
+  # ---------------------------------------------------------------------------
+  # CDC Layer (Debezium)
+  # ---------------------------------------------------------------------------
+  debezium:
+    image: debezium/server:2.5
+    container_name: debezium
+    volumes:
+      - ./config/debezium:/debezium/conf
+    environment:
+      - DEBEZIUM_SINK_TYPE=rabbitmq
+    networks:
+      - agent-net
+      - analytics-net
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Message Broker (Testing Mode)
+  # ---------------------------------------------------------------------------
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672" # AMQP
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: <your_rabbitmq_user>
+      RABBITMQ_DEFAULT_PASS: <your_rabbitmq_password>
+    volumes:
+      - ./config/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+      - ./config/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json
+    networks:
+      - analytics-net
+
+  # ---------------------------------------------------------------------------
+  # Storage Layer (Data Lake + Warehouse)
+  # ---------------------------------------------------------------------------
+  minio:
+    image: minio/minio
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: <your_minio_user>
+      MINIO_ROOT_PASSWORD: <your_minio_password>
+    ports:
+      - "9000:9000" # API
+      - "9001:9001" # Console
+    volumes:
+      - ./data/minio:/data
+    networks:
+      - analytics-net
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse
+    ports:
+      - "8123:8123" # HTTP
+      - "9009:9009" # TCP
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    environment:
+      CLICKHOUSE_USER: <your_clickhouse_user>
+      CLICKHOUSE_PASSWORD: <your_clickhouse_password>
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    networks:
+      - analytics-net
+
+  # ---------------------------------------------------------------------------
+  # ETL/ELT Consumer (RabbitMQ -> ClickHouse)
+  # ---------------------------------------------------------------------------
+  rabbitmq-consumer:
+    image: python:3.9-slim
+    container_name: rabbitmq-consumer
+    working_dir: /app
+    volumes:
+      - ./rabbitmq_to_clickhouse.py:/app/rabbitmq_to_clickhouse.py
+      - ./logs:/app/logs
+    command: sh -c "pip install pika clickhouse-connect python-dateutil && python3 -u rabbitmq_to_clickhouse.py"
+    depends_on:
+      - rabbitmq
+      - clickhouse
+    networks:
+      - analytics-net
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Data Transformation Layer (dbt)
+  # ---------------------------------------------------------------------------
+  dbt-transform:
+    image: python:3.9-slim
+    container_name: dbt-transform
+    working_dir: /usr/app
+    volumes:
+      - .:/usr/app
+      - ./profiles.yml:/root/.dbt/profiles.yml
+    command: >
+      sh -c "pip install dbt-clickhouse &&
+             dbt parse &&
+             tail -f /dev/null"
+    depends_on:
+      - clickhouse
+    networks:
+      - analytics-net
+
+  # ---------------------------------------------------------------------------
+  # Orchestration Layer (Airflow)
+  # ---------------------------------------------------------------------------
+  postgres-airflow:
+    image: postgres:13
+    container_name: postgres-airflow
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - postgres_airflow_data:/var/lib/postgresql/data
+    networks:
+      - analytics-net
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "airflow" ]
+      interval: 5s
+      retries: 5
+
+  airflow-webserver:
+    image: apache/airflow:3.2.0b1-python3.13
+    container_name: airflow-webserver
+    command: api-server
+    ports:
+      - "8080:8080"
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=true
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS=True
+      - AIRFLOW__CORE__HOSTNAME=airflow-webserver
+      - AIRFLOW__API_AUTH__JWT_SECRET=<generate_a_random_jwt_secret>
+      - _PIP_ADDITIONAL_REQUIREMENTS=dbt-clickhouse psycopg2-binary
+      - DBT_PROFILES_DIR=/opt/airflow/dbt_project
+
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs/airflow:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./models:/opt/airflow/dbt_project/models
+      - ./macros:/opt/airflow/dbt_project/macros
+      - ./dbt_project.yml:/opt/airflow/dbt_project/dbt_project.yml
+      - ./profiles.yml:/opt/airflow/dbt_project/profiles.yml
+
+    depends_on:
+      postgres-airflow:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - analytics-net
+
+  airflow-scheduler:
+    image: apache/airflow:3.2.0b1-python3.13
+    container_name: airflow-scheduler
+    command: scheduler
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=true
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS=True
+      - AIRFLOW__CORE__HOSTNAME=airflow-scheduler
+      - AIRFLOW__CORE__EXECUTION_API_SERVER_URL=http://airflow-webserver:8080/execution/
+      - AIRFLOW__API_AUTH__JWT_SECRET=<generate_a_random_jwt_secret>
+      - _PIP_ADDITIONAL_REQUIREMENTS=dbt-clickhouse
+      - DBT_PROFILES_DIR=/opt/airflow/dbt_project
+      - DBT_LOG_PATH=/tmp/dbt_logs
+      - DBT_TARGET_PATH=/tmp/dbt_target
+
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs/airflow:/opt/airflow/logs
+      - ./models:/opt/airflow/dbt_project/models
+      - ./macros:/opt/airflow/dbt_project/macros
+      - ./dbt_project.yml:/opt/airflow/dbt_project/dbt_project.yml
+      - ./profiles.yml:/opt/airflow/dbt_project/profiles.yml
+
+    depends_on:
+      postgres-airflow:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - analytics-net
+
+  airflow-dag-processor:
+    image: apache/airflow:3.2.0b1-python3.13
+    container_name: airflow-dag-processor
+    command: dag-processor
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=true
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS=True
+      - AIRFLOW__CORE__HOSTNAME=airflow-dag-processor
+      - AIRFLOW__API_AUTH__JWT_SECRET=<generate_a_random_jwt_secret>
+      - _PIP_ADDITIONAL_REQUIREMENTS=dbt-clickhouse
+      - DBT_PROFILES_DIR=/opt/airflow/dbt_project
+
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs/airflow:/opt/airflow/logs
+      - ./models:/opt/airflow/dbt_project/models
+      - ./macros:/opt/airflow/dbt_project/macros
+      - ./dbt_project.yml:/opt/airflow/dbt_project/dbt_project.yml
+      - ./profiles.yml:/opt/airflow/dbt_project/profiles.yml
+
+    depends_on:
+      postgres-airflow:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - analytics-net
+
+  airflow-init:
+    image: apache/airflow:3.2.0b1-python3.13
+    container_name: airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+    depends_on:
+      postgres-airflow:
+        condition: service_healthy
+    networks:
+      - analytics-net
+
+  # ---------------------------------------------------------------------------
+  # Presentation Layer (Metabase)
+  # ---------------------------------------------------------------------------
+  metabase:
+    image: metabase/metabase
+    container_name: metabase2
+    ports:
+      - "3000:3000"
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+    volumes:
+      - ./data/metabase:/metabase-data
+    depends_on:
+      - clickhouse
+    networks:
+      - analytics-net
+
+networks:
+  agent-net:
+    driver: bridge
+  analytics-net:
+    external: true
+
+volumes:
+  clickhouse_data:
+  postgres_airflow_data:

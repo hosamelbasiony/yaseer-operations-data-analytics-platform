@@ -1,0 +1,36 @@
+# Credentials & configs with secrets
+config/debezium/application.properties
+config/rabbitmq/definitions.json
+docker-compose.yml
+docker-compose-agent.yml
+profiles.yml
+.user.yml
+
+# Python cache
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# dbt
+dbt_packages/
+target/
+
+# Logs
+logs/
+logs_init.txt
+logs_init2.txt
+
+# data
+data/
+seeds/
+snapshots/
+sources/
+playground/
+
+# Data dumps
+*.sql
+
+
+# others
+Project Documentation.pdf
+rabbitmq_viewer.py
