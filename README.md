@@ -106,11 +106,12 @@ MariaDB (LIS)  →  Debezium (CDC)  →  RabbitMQ  →  Python Consumer  →  Cl
 
 | Role | Name |
 | :--- | :--- |
-| **Team Leader** | Hosam Mohammad Ali |
 | Member | Omar Hamdan Abdelaziz |
 | Member | Ahmad Mostafa Hosni |
 | Member | Ahmad Mohammad Abdelsalam |
 | Member | Ahmad Mohammad Abdelkhalik |
 | Member | Mennat-Allah Abdellatif Ahmad |
+
+| **Team Leader** | Hosam Mohammad Ali |
 
 ---
