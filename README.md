@@ -111,7 +111,6 @@ MariaDB (LIS)  →  Debezium (CDC)  →  RabbitMQ  →  Python Consumer  →  Cl
 | Member | Ahmad Mohammad Abdelsalam |
 | Member | Ahmad Mohammad Abdelkhalik |
 | Member | Mennat-Allah Abdellatif Ahmad |
-
 | **Team Leader** | Hosam Mohammad Ali |
 
 ---
