@@ -1,29 +1,32 @@
 # 📊 Yaseer Operations Big Data Analytics Platform
 **Enterprise-Grade Data Analytics & Engineering Solution for LIS (Laboratory Information Systems)**
 
+> 📖 **Full project documentation is available in the [`docs/`](docs/) folder.**
+
 ---
 
 ## 🚀 Overview
-The **Yaseer Data Analytics Platform** is a specialized Big Data solution designed to process, clean, and analyze operational data from the Yaseer Laboratory Management System. It leverages a modern **Medallion Architecture** to transform raw operational logs into actionable business insights.
+The **Yaseer Data Analytics Platform** is a specialized Big Data solution designed to process, clean, and analyze operational data from the Yaseer Laboratory Management System. It leverages a modern **Medallion Architecture** to transform raw operational data into actionable business insights.
 
 ### 🏗️ Architecture Stack
-*   **Ingestion**: Debezium (CDC) -> RabbitMQ
+*   **Ingestion**: Debezium (CDC) → RabbitMQ
 *   **Storage**: MariaDB (Source), ClickHouse (Data Warehouse), MinIO (Data Lake)
-*   **Processing**: Python ELT Loaders, dbt (Data Build Tool), Apache Spark (Planned)
+*   **Processing**: Python ELT Loaders, dbt (Data Build Tool)
 *   **Orchestration**: Apache Airflow
-*   **Visualization**: Metabase, Apache Superset
+*   **Visualization**: Metabase
 
 ---
 
 ## 📚 Documentation
-Detailed documentation for specific components can be found in the `docs/` directory:
+
+The [`docs/`](docs/) directory contains the full project documentation:
 
 | Document | Description |
 | :--- | :--- |
-| [**DATABASE.md**](docs/DATABASE.md) | 🧬 Detailed LIS database schema, ERD, and table dictionary. |
-| [**CLEANING.md**](docs/CLEANING.md) | 🧹 Data cleaning logic, transformation rules, and medallion architecture. |
-| [**METABASE_GUIDE.md**](docs/METABASE_GUIDE.md) | 📊 Guide to building dashboards and visualizations in Metabase. |
-| [**Project Documentation.pdf**](docs/Project%20Documentation.pdf) | 📄 Original comprehensive project documentation. |
+| [**1. Project Planning & Management**](docs/1.%20Project%20Planning%20%26%20Management.md) | 📅 Team structure, timeline, methodology, scope, and risk management. |
+| [**2. Literature Review**](docs/2.%20Literature%20Review.md) | 📚 Big Data concepts, ETL vs ELT, data warehousing, and Medallion Architecture. |
+| [**3. Requirements Gathering**](docs/3.%20Requirements%20Gathering.md) | 📋 Functional & non-functional requirements, user roles, and use cases. |
+| [**4. System Analysis & Design**](docs/4.%20System%20Analysis%20%26%20Design.md) | 🏗️ System architecture, data flow, ERD, and design decisions. |
 
 ---
 
@@ -32,39 +35,32 @@ Detailed documentation for specific components can be found in the `docs/` direc
 ### Prerequisites
 *   Docker & Docker Compose
 
-### 1. Start the Platform
-Boot up the entire stack, including the LIS Simulation, Data Warehouse, and Airflow.
+### 1. Configure Environment
+Copy the example files and fill in your credentials:
 ```bash
-docker-compose -f docker-compose-platform.yml up -d
+cp docker-compose.example.yml docker-compose.yml
+cp config/debezium/application.example.properties config/debezium/application.properties
+cp profiles.example.yml profiles.yml
 ```
 
-### 2. Access Services
+### 2. Start the Platform
+Boot up the entire stack, including the Data Warehouse, CDC pipeline, and Airflow.
+```bash
+docker-compose up -d
+```
+
+### 3. Access Services
 Once the containers are running, access the following interfaces:
 
-| Service | URL | Credentials | Description |
-| :--- | :--- | :--- | :--- |
-| **Apache Airflow** | [http://localhost:8080](http://localhost:8080) | `admin` / `admin` | Workflow Orchestration & Scheduling |
-| **Apache Superset** | [http://localhost:8088](http://localhost:8088) | `admin` / `admin` | Modern Data Exploration & Visualization Platform |
-| **Metabase** | [http://localhost:3000](http://localhost:3000) | Setup on first run | BI Dashboards & Reporting |
-| **ClickHouse** | [http://localhost:8123](http://localhost:8123) | `default` / (none) | OLAP Database (HTTP) |
-| **RabbitMQ** | [http://localhost:15672](http://localhost:15672) | `user` / `password` | Message Broker Management |
-| **MinIO** | [http://localhost:9001](http://localhost:9001) | `minioadmin` / `minio123` | Object Storage Console |
-| **PhpMyAdmin** | [http://localhost:8082](http://localhost:8082) | `dbuser` / `dbpassword` | LIS Database Admin (MariaDB) |
+| Service | URL | Description |
+| :--- | :--- | :--- |
+| **Apache Airflow** | [http://localhost:8080](http://localhost:8080) | Workflow Orchestration & Scheduling |
+| **Metabase** | [http://localhost:3000](http://localhost:3000) | BI Dashboards & Reporting |
+| **ClickHouse** | [http://localhost:8123](http://localhost:8123) | OLAP Database (HTTP Interface) |
+| **RabbitMQ** | [http://localhost:15672](http://localhost:15672) | Message Broker Management |
+| **MinIO** | [http://localhost:9001](http://localhost:9001) | Object Storage Console |
 
-### 3. Superset Initialization
-Initialize Superset and create an admin user:
-```bash
-docker exec -it superset bash
-
-superset fab create-admin \
-  --username admin \
-  --firstname Superset \
-  --lastname Admin \
-  --email admin@superset.com \
-  --password admin
-
-superset init
-```
+> **Note:** Default credentials are configured in `docker-compose.yml`. Metabase requires initial setup on first run.
 
 ---
 
@@ -72,27 +68,48 @@ superset init
 
 ```
 .
-├── config/                 # Service configurations (RabbitMQ, Debezium, etc.)
-├── dags/                   # Apache Airflow DAGs (Python workflows)
-├── data/                   # Persistent data storage for containers
-├── docs/                   # ✨ Project documentation
-├── logs/                   # Application and service logs
-├── macros/                 # dbt macros
-├── models/                 # dbt data models (Medallion layers)
-├── plugins/                # Apache Airflow plugins
-├── docker-compose-*.yml    # Docker orchestration files
-├── rabbitmq_to_clickhouse.py # Python ELT Loader
-└── README.md               # You are here
+├── config/                       # Service configurations (RabbitMQ, Debezium)
+│   ├── debezium/                 # Debezium CDC connector config
+│   └── rabbitmq/                 # RabbitMQ broker config
+├── dags/                         # Apache Airflow DAGs (Python workflows)
+├── docs/                         # 📖 Project documentation
+├── macros/                       # dbt macros
+├── models/                       # dbt data models (Medallion layers)
+├── plugins/                      # Apache Airflow plugins
+├── scripts/                      # Utility scripts
+├── docker-compose.example.yml    # Docker Compose template (copy to docker-compose.yml)
+├── dbt_project.yml               # dbt project configuration
+├── profiles.example.yml          # dbt profile template (copy to profiles.yml)
+├── rabbitmq_to_clickhouse.py     # Python CDC consumer (RabbitMQ → ClickHouse)
+├── test_consumer.py              # Consumer unit tests
+└── README.md                     # You are here
 ```
 
 ---
 
-## 🔄 ELT Workflow (The "Data Journey")
-1.  **Change Capture**: `Debezium` listens to `MariaDB` binlogs for any changes (Inserts/Updates).
-2.  **Streaming**: Changes are pushed to `RabbitMQ` topics.
-3.  **Ingestion**: `rabbitmq_to_clickhouse.py` consumes messages and writes raw JSON to `ClickHouse`.
-4.  **Transformation**: `dbt` (orchestrated by `Airflow`) cleans data and builds Star Schema tables.
-5.  **Analysis**: `Metabase` and `Apache Superset` query the final Gold tables for dashboards.
+## 🔄 ELT Workflow
+
+```
+MariaDB (LIS)  →  Debezium (CDC)  →  RabbitMQ  →  Python Consumer  →  ClickHouse  →  dbt  →  Metabase
+```
+
+1.  **Change Capture**: Debezium listens to MariaDB binlogs for data changes (Inserts, Updates, Deletes).
+2.  **Streaming**: CDC events are published to RabbitMQ queues.
+3.  **Ingestion**: `rabbitmq_to_clickhouse.py` consumes messages and writes raw data to ClickHouse (Bronze layer).
+4.  **Transformation**: dbt (orchestrated by Airflow) cleans and models data through Silver → Gold layers.
+5.  **Visualization**: Metabase queries the final Gold tables for dashboards and reports.
 
 ---
-© **Tarqeem Software & Information Systems**
+
+## 👥 Team
+
+| Role | Name |
+| :--- | :--- |
+| **Team Leader** | Hosam Mohammad Ali |
+| Member | Omar Hamdan Abdelaziz |
+| Member | Ahmad Mostafa Hosni |
+| Member | Ahmad Mohammad Abdelsalam |
+| Member | Ahmad Mohammad Abdelkhalik |
+| Member | Mennat-Allah Abdellatif Ahmad |
+
+---
