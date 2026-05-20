@@ -350,6 +350,53 @@ def create_table_if_not_exists(ch_client, table_name: str, sample_record: dict) 
 
 
 # ===========================================================================
+#  Schema evolution (auto-add missing columns)
+# ===========================================================================
+def _infer_ch_type(value) -> str:
+    """Infer a ClickHouse column type from a Python value."""
+    if isinstance(value, bool):
+        return "UInt8"
+    elif isinstance(value, int):
+        return "Int64"
+    elif isinstance(value, float):
+        return "Float64"
+    elif isinstance(value, datetime):
+        return "DateTime"
+    else:
+        return "String"
+
+
+def _evolve_schema(ch_client, table_name: str, record: dict) -> bool:
+    """
+    Compare record keys against existing ClickHouse columns.
+    Add any missing columns via ALTER TABLE ADD COLUMN.
+    Returns True if evolution succeeded (or was unnecessary).
+    """
+    try:
+        existing_cols = set(_get_column_types(ch_client, table_name).keys())
+        record_cols = set(record.keys())
+        missing_cols = record_cols - existing_cols
+
+        if not missing_cols:
+            logger.debug(f"No missing columns for '{table_name}'.")
+            return True
+
+        for col_name in missing_cols:
+            ch_type = _infer_ch_type(record[col_name])
+            alter_sql = f"ALTER TABLE `{table_name}` ADD COLUMN IF NOT EXISTS `{col_name}` Nullable({ch_type})"
+            logger.info(f"Schema evolution: Adding column `{col_name}` Nullable({ch_type}) to '{table_name}'")
+            ch_client.command(alter_sql)
+
+        # Invalidate column type cache so next insert picks up new columns
+        _column_type_cache.pop(table_name, None)
+        return True
+
+    except Exception as e:
+        logger.error(f"Schema evolution failed for '{table_name}': {e}", exc_info=True)
+        return False
+
+
+# ===========================================================================
 #  CDC event processing
 # ===========================================================================
 def process_cdc_event(ch_client, message: dict) -> bool:
@@ -440,7 +487,22 @@ def process_cdc_event(ch_client, message: dict) -> bool:
         # when Debezium sends int for a String column or vice versa)
         values = _cast_row_for_table(ch_client, table_name, columns, values)
 
-        ch_client.insert(table_name, [values], column_names=columns)
+        try:
+            ch_client.insert(table_name, [values], column_names=columns)
+        except Exception as insert_err:
+            if "Unrecognized column" in str(insert_err):
+                # Schema evolution: source table has new columns not yet in ClickHouse.
+                # Auto-add them and retry.
+                logger.warning(f"Schema drift detected on '{table_name}'. Attempting auto-evolution...")
+                if _evolve_schema(ch_client, table_name, coerced_record):
+                    # Re-cast after schema change and retry insert
+                    values = _cast_row_for_table(ch_client, table_name, columns, values)
+                    ch_client.insert(table_name, [values], column_names=columns)
+                    logger.info(f"Schema evolution succeeded for '{table_name}'. Insert retried OK.")
+                else:
+                    raise  # Re-raise if evolution failed
+            else:
+                raise  # Re-raise non-schema errors
 
         stats["processed"] += 1
         stats["last_processed"] = datetime.now().isoformat()
@@ -458,6 +520,7 @@ def process_cdc_event(ch_client, message: dict) -> bool:
         logger.error(f"Error processing CDC event: {e}", exc_info=True)
         stats["errors"] += 1
         return False
+
 
 
 # ===========================================================================

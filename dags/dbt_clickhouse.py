@@ -5,8 +5,7 @@ from datetime import datetime
 with DAG(
     'yaseer_dbt_pipeline',
     start_date=datetime(2024, 1, 1),
-    # schedule='@daily',
-    schedule='*/10 * * * *',
+    schedule='*/1 * * * *',
     catchup=False
 ) as dag:
 
